@@ -53,14 +53,15 @@ jobs:
         iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
         choco install googlechrome -y --no-progress
         choco install 7zip -y --no-progress
+        choco install vscode -y --no-progress
         
     - name: Iniciar Tunel Ngrok e Mostrar IP
       shell: pwsh
       run: |
         Write-Host "Iniciando Ngrok..."
         Start-Process -FilePath "C:\ngrok\ngrok.exe" -ArgumentList "tcp 3389" -WindowStyle Hidden
-        Write-Host "Aguardando 15 segundos para o tunel estabilizar..."
-        Start-Sleep -Seconds 15
+        Write-Host "Aguardando 20 segundos para o tunel estabilizar..."
+        Start-Sleep -Seconds 20
         
         try {
           $ngrokApi = Invoke-RestMethod -Uri "http://localhost:4040/api/tunnels" -ErrorAction Stop
@@ -75,7 +76,7 @@ jobs:
           Write-Host "Senha: P@ssw0rd!" -ForegroundColor Yellow
           Write-Host "==========================================" -ForegroundColor Green
         } catch {
-          Write-Host "Erro ao pegar IP do Ngrok. Verifique o token." -ForegroundColor Red
+          Write-Host "Erro ao pegar IP do Ngrok. Verifique o token nos Secrets." -ForegroundColor Red
         }
         
     - name: Manter Maquina Ligada
