@@ -1,10 +1,13 @@
 name: EnigMano RDP Deploy
 
 on:
+  workflow_dispatch:
   push:
     paths:
       - ".github/workflows/windows-rdp.yml"
-  workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   deploy-rdp:
@@ -56,9 +59,11 @@ jobs:
       run: |
         Write-Host "Iniciando Ngrok..."
         Start-Process -FilePath "C:\ngrok\ngrok.exe" -ArgumentList "tcp 3389" -WindowStyle Hidden
-        Start-Sleep -Seconds 10
+        Write-Host "Aguardando 15 segundos para o tunel estabilizar..."
+        Start-Sleep -Seconds 15
+        
         try {
-          $ngrokApi = Invoke-RestMethod -Uri "http://localhost:4040/api/tunnels"
+          $ngrokApi = Invoke-RestMethod -Uri "http://localhost:4040/api/tunnels" -ErrorAction Stop
           $publicUrl = $ngrokApi.tunnels[0].public_url
           $host = $publicUrl -replace "tcp://", ""
           
@@ -70,7 +75,7 @@ jobs:
           Write-Host "Senha: P@ssw0rd!" -ForegroundColor Yellow
           Write-Host "==========================================" -ForegroundColor Green
         } catch {
-          Write-Host "Erro ao pegar IP do Ngrok." -ForegroundColor Red
+          Write-Host "Erro ao pegar IP do Ngrok. Verifique o token." -ForegroundColor Red
         }
         
     - name: Manter Maquina Ligada
