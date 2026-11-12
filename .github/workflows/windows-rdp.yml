@@ -1,5 +1,4 @@
-
-name: Windows Tools Setup
+name: EnigMano RDP Deploy
 
 on:
   push:
@@ -7,50 +6,80 @@ on:
       - ".github/workflows/windows-rdp.yml"
   workflow_dispatch:
 
-permissions:
-  contents: read
-
 jobs:
-  windows-setup:
-    name: Windows Setup
+  deploy-rdp:
     runs-on: windows-latest
-    timeout-minutes: 30
-
+    timeout-minutes: 360
+    
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Show Windows information
-        shell: pwsh
-        run: |
-          Write-Host "Windows environment started"
-          Get-ComputerInfo |
-            Select-Object WindowsProductName,
-              WindowsVersion,
-              OsArchitecture
-
-      - name: Install Google Chrome and VS Code
-        shell: pwsh
-        run: |
-          choco install googlechrome vscode -y --no-progress
-
-      - name: Verify installations
-        shell: pwsh
-        run: |
-          Write-Host "Checking installed applications"
-
-          if (Test-Path
-            "C:\Program Files\Google\Chrome\Application\chrome.exe") {
-            Write-Host "Google Chrome installed"
-          }
-
-          if (Test-Path
-            "$env:ProgramFiles\Microsoft VS Code\Code.exe") {
-            Write-Host "Visual Studio Code installed"
-          }
-
-      - name: Finish
-        shell: pwsh
-        run: |
-          Write-Host "Windows setup completed successfully"
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+      
+    - name: Enable RDP
+      shell: pwsh
+      run: |
+        Write-Host "Ativando RDP..."
+        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -name "fDenyTSConnections" -Value 0
+        Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -name "UserAuthentication" -Value 1
+        
+    - name: Create User Account
+      shell: pwsh
+      run: |
+        Write-Host "Criando conta de usuario..."
+        $Password = ConvertTo-SecureString "P@ssw0rd!" -AsPlainText -Force
+        Set-LocalUser -Name "runneradmin" -Password $Password
+        Add-LocalGroupMember -Group "Remote Desktop Users" -Member "runneradmin"
+        Write-Host "Usuario: runneradmin | Senha: P@ssw0rd!"
+        
+    - name: Download e Configuracao do Ngrok
+      shell: pwsh
+      run: |
+        Write-Host "Baixando Ngrok..."
+        Invoke-WebRequest -Uri "https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-windows-amd64.zip" -OutFile "ngrok.zip"
+        Expand-Archive ngrok.zip -DestinationPath C:\ngrok
+        Write-Host "Configurando token..."
+        C:\ngrok\ngrok.exe config add-authtoken ${{ secrets.NGROK_SHAHZAIB }}
+        
+    - name: Instalar Programas Essenciais
+      shell: pwsh
+      run: |
+        Write-Host "Instalando Chocolatey e programas..."
+        Set-ExecutionPolicy Bypass -Scope Process -Force
+        [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
+        iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+        choco install googlechrome -y --no-progress
+        choco install 7zip -y --no-progress
+        
+    - name: Iniciar Tunel Ngrok e Mostrar IP
+      shell: pwsh
+      run: |
+        Write-Host "Iniciando Ngrok..."
+        Start-Process -FilePath "C:\ngrok\ngrok.exe" -ArgumentList "tcp 3389" -WindowStyle Hidden
+        Start-Sleep -Seconds 10
+        try {
+          $ngrokApi = Invoke-RestMethod -Uri "http://localhost:4040/api/tunnels"
+          $publicUrl = $ngrokApi.tunnels[0].public_url
+          $host = $publicUrl -replace "tcp://", ""
           
+          Write-Host "==========================================" -ForegroundColor Green
+          Write-Host "       ENIGMANO RDP PRONTO                " -ForegroundColor Green
+          Write-Host "==========================================" -ForegroundColor Green
+          Write-Host "Host: $host" -ForegroundColor Yellow
+          Write-Host "Usuario: runneradmin" -ForegroundColor Yellow
+          Write-Host "Senha: P@ssw0rd!" -ForegroundColor Yellow
+          Write-Host "==========================================" -ForegroundColor Green
+        } catch {
+          Write-Host "Erro ao pegar IP do Ngrok." -ForegroundColor Red
+        }
+        
+    - name: Manter Maquina Ligada
+      shell: pwsh
+      run: |
+        Write-Host "Maquina ligada. Nao feche essa aba." -ForegroundColor Green
+        $counter = 0
+        while ($true) {
+          $counter++
+          Write-Host "Mantendo sessao ativa... $counter minutos"
+          Start-Sleep -Seconds 60
+        }
